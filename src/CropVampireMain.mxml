@@ -134,7 +134,9 @@
 				var container:Sprite = new Sprite();
 				container.addChild(target);
 				
-				var item:Object = _map[kernal.data];				
+				var item:Object = _map[kernal.data];
+				
+				if (name.match(/^Crop_\d+_4$/i)) name = name.replace(/\d+$/, "6");
 				
 				var bytes:ByteArray = draw(container);
 				var file:File = new File(URL.ROOT.url + "/" + item.id + "/" + name + ".png");
