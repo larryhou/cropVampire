@@ -127,6 +127,7 @@ package
 				}
 			}
 			
+			
 			swf.tags.splice.apply(null, [-2, 0].concat(list));
 			return swf.repack();
 		}
