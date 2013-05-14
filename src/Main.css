@@ -1,0 +1,13 @@
+/* CSS file */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+
+
+global
+{
+	font-size: 18;
+	font-family: Monaco;
+	vertical-align: top;
+	text-align: left;
+}
+	

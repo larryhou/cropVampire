@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009"
+					   xmlns:s="library://ns.adobe.com/flex/spark"
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					   showStatusBar="false"
+					   width="600" height="100" creationComplete="appHandler(event)">
+	<fx:Style source="Main.css"/>
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import com.larrio.flow.MultiTaskFlow;
+			
+			import mx.events.FlexEvent;
+			import mx.graphics.codec.PNGEncoder;
+			import mx.messaging.channels.StreamingAMFChannel;
+			
+			private var _provider:Array;
+			private var _map:Dictionary;
+			
+			private var _assets:Dictionary;
+			
+			protected function appHandler(e:FlexEvent):void
+			{
+				var url:String = "http://ctc.appimg.qq.com/happyfarm/data/data_zh_CN.xml";
+				var request:URLRequest = new URLRequest(url);
+				request.requestHeaders.push(new URLRequestHeader("Referer", "http://qzone.qq.com"));
+				
+				var loader:URLLoader = new URLLoader();
+				loader.dataFormat = URLLoaderDataFormat.BINARY;
+				loader.addEventListener(Event.COMPLETE, configHandler);
+				loader.load(request);
+				
+				errors.text = "0";
+				sucess.text = "0";
+				progress.label = "";
+				
+				_map = new Dictionary(false);
+				_assets = new Dictionary(false);
+			}
+			
+			protected function configHandler(e:Event):void
+			{
+				var target:URLLoader = e.currentTarget as URLLoader;
+				target.removeEventListener(e.type, arguments.callee);
+				
+				var config:XML = new XML(target.data);
+				
+				_provider = [];
+				
+				var node:XML, key:String;
+				var datalist:XMLList = config.assets.asset;
+				for each(node in datalist)
+				{
+					key = node.@id;
+					_assets[key] = String(node.@src);
+				}
+				
+				var url:String, assets:Object;
+				var crops:Array = JSON.parse(config.crops.toString()).crops as Array;
+				for each(var it:Object in crops)
+				{
+					assets = it["asset_id"];
+					for(key in assets)
+					{
+						url = _assets[assets[key]];
+						if (!url) continue;
+						
+						_provider.push(assets[key] = url);
+						_map[url] = it;
+					}
+					
+					delete it["asset_id"];
+					it["assets"] = assets;
+				}
+				
+				advanceToValue(0);
+				
+				var task:MultiTaskFlow = new MultiTaskFlow(4, CropKernal);
+				
+				task.addEventListener(Event.CHANGE, changeHandler);
+				task.addEventListener(Event.COMPLETE, completeHandler);
+				task.execute(_provider);
+			}
+			
+			private function advanceToValue(value:uint):void
+			{
+				var percent:uint = value / _provider.length * 100 >> 0;
+				progress.label = "PROCESSING:" + percent + "%";
+				
+				progress.setProgress(percent, 100);
+			}
+			
+			protected function completeHandler(e:Event):void
+			{
+				
+			}
+			
+			protected function changeHandler(e:Event):void
+			{
+				var target:MultiTaskFlow = e.currentTarget as MultiTaskFlow;
+				var kernal:CropKernal = target.currentKernel as CropKernal;
+				
+				var item:Object = _map[kernal.data];
+				var name:String = kernal.name.split(".").shift();				
+				
+				if (kernal.result)
+				{	
+					processFile(kernal);						
+					
+					var file:File = new File(URL.ROOT.url + "/" + item.id + "/info.txt");
+					var stream:FileStream = new FileStream();
+					
+					stream.open(file, FileMode.WRITE);
+					stream.writeMultiByte(JSON.stringify(item), "utf-8");
+					stream.close();
+				}
+				
+				errors.text = target.errors.toString();
+				sucess.text = target.success.toString();
+				
+				advanceToValue(target.success + target.errors);
+			}
+			
+			private function processFile(kernal:CropKernal):void
+			{				
+				var loader:Loader = kernal.result as Loader;
+				var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
+				
+				var name:String = kernal.name.split(".").shift();
+				var target:MovieClip = loader.content as MovieClip;
+				target.scaleX = target.scaleY = 10;
+				var container:Sprite = new Sprite();
+				container.addChild(target);
+				
+				var item:Object = _map[kernal.data];				
+				
+				var bytes:ByteArray = draw(container);
+				var file:File = new File(URL.ROOT.url + "/" + item.id + "/" + name + ".png");
+				var stream:FileStream = new FileStream();
+				stream.open(file, FileMode.WRITE);
+				stream.writeBytes(bytes);
+				stream.close();
+				
+				file = new File(URL.ROOT.url + "/" + item.id + "/" + kernal.name);
+				stream.open(file, FileMode.WRITE);
+				stream.writeBytes(loader.contentLoaderInfo.bytes);
+				stream.close();
+				
+				if (name.match(/^Crop_\d+$/i)) processCrop(target, name, item);
+			}			
+			
+			private function draw(target:DisplayObject):ByteArray
+			{
+				var bounds:Rectangle = target.getBounds(target);
+				
+				var matrix:Matrix = new Matrix();
+				matrix.translate(-bounds.x, -bounds.y);
+				
+				var data:BitmapData = new BitmapData(bounds.width, bounds.height, true, 0);
+				data.draw(target, matrix, null, null, null,true);
+				
+				return new PNGEncoder().encode(data);
+			}
+			
+			// 处理作物状态
+			private function processCrop(target:MovieClip, name:String, data:Object):void
+			{
+				target = target.getChildAt(0) as MovieClip;
+				
+				var container:Sprite = new Sprite();	
+				var folder:File = new File(URL.ROOT.url + "/" + data.id + "/states/");
+				
+				var stream:FileStream = new FileStream();
+				
+				var index:uint;
+				var child:DisplayObject;
+				while (target.numChildren)
+				{
+					index++;
+					
+					if (container.numChildren) container.removeChildAt(0);
+					child = target.removeChildAt(0);
+					child.scaleX = child.scaleY = 10;
+					container.addChild(child);
+					
+					stream.open(new File(folder.url + "/" + data.id + "_" + index + ".png"), FileMode.WRITE);
+					stream.writeBytes(draw(container));
+					stream.close();
+				}
+			}
+						
+		]]>
+	</fx:Script>
+	<mx:ProgressBar id="progress" x="0" y="0" width="600" mode="manual" minimum="0" maximum="100"/>
+	<s:Label x="10" y="64" width="181" height="26" fontSize="22" text="success:"/>
+	<s:Label id="sucess" x="124" y="64" width="181" height="26" fontSize="22" text="99999"/>
+	<s:Label x="343" y="63" color="#FF0000" fontSize="22" text="errors:"/>
+	<s:Label id="errors" x="438" y="63" width="142" color="#FF0000" fontSize="22" text="999"/>
+</s:WindowedApplication>
