@@ -115,12 +115,12 @@ package
 					var adder:PlaceObject2Tag;
 					for (var j:uint = 0; j < symbol.ids.length; j++)
 					{
-						if (symbol.ids[j])
+						if (symbol.ids[j] > 0 && symbol.symbols[j].match(/^Crop_\d+/i))
 						{
 							adder = new PlaceObject2Tag();
 							adder.character = symbol.ids[j];
 							adder.depth = list.length + 1;
-							list.push(adder);						
+							list.push(adder);
 						}
 					}
 					
