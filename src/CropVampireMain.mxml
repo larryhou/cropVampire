@@ -148,7 +148,10 @@
 				stream.writeBytes(loader.contentLoaderInfo.bytes);
 				stream.close();
 				
-				if (name.match(/^Crop_\d+$/i)) processCrop(target, name, item);
+				if (name.match(/^Crop_\d+(_3)?$/i)) 
+				{
+					processCrop(target, name, item);
+				}				
 			}			
 			
 			private function draw(target:DisplayObject):ByteArray
@@ -169,25 +172,31 @@
 			{
 				target = target.getChildAt(0) as MovieClip;
 				
-				var container:Sprite = new Sprite();	
+				var container:Sprite = new Sprite();
+				
+				var index:uint = 0;
 				var folder:File = new File(URL.ROOT.url + "/" + data.id + "/states/");
+				if (name.match(/^Crop_\d+_3$/i))
+				{
+					index = 3;
+					folder = new File(URL.ROOT.url + "/" + data.id + "/");
+				}
 				
 				var stream:FileStream = new FileStream();
 				
-				var index:uint;
 				var child:DisplayObject;
 				while (target.numChildren)
-				{
-					index++;
-					
+				{					
 					if (container.numChildren) container.removeChildAt(0);
 					child = target.removeChildAt(0);
 					child.scaleX = child.scaleY = 10;
 					container.addChild(child);
 					
-					stream.open(new File(folder.url + "/" + data.id + "_" + index + ".png"), FileMode.WRITE);
+					stream.open(new File(folder.url + "/Crop_" + data.id + "_" + index + ".png"), FileMode.WRITE);
 					stream.writeBytes(draw(container));
 					stream.close();
+					
+					index++;
 				}
 			}
 						
