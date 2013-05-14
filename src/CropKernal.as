@@ -16,6 +16,7 @@ package
 	import flash.filesystem.File;
 	import flash.filesystem.FileMode;
 	import flash.filesystem.FileStream;
+	import flash.net.FileReference;
 	import flash.net.URLLoader;
 	import flash.net.URLLoaderDataFormat;
 	import flash.net.URLRequest;
@@ -90,45 +91,40 @@ package
 		// 去带代码并把素材放到舞台
 		private function processSWF(bytes:ByteArray):ByteArray
 		{
-			var swf:SWFile = new SWFile(bytes, [TagType.SYMBOL_CLASS, TagType.SHOW_FRAME]);
-			
-			var list:Array = [];
+			var swf:SWFile = new SWFile(bytes);
 			
 			var tag:SWFTag;
 			var symbol:SymbolClassTag;
-			for (var i:int = 0, length:uint = swf.tags.length; i < length; i++)
+			for (var i:int = 0; i < swf.tags.length; i++)
 			{
 				tag = swf.tags[i];
 				if (tag.type == TagType.DO_ABC)
 				{
-					swf.tags.splice(i, 1);
-					length--; i--;
+					swf.tags.splice(i--, 1);
 					continue;
 				}
 				
 				if (tag.type == TagType.SYMBOL_CLASS)
 				{
 					symbol = tag as SymbolClassTag;
-					swf.tags.splice(i, 1);
-					length--; i--;
 					
 					var adder:PlaceObject2Tag;
 					for (var j:uint = 0; j < symbol.ids.length; j++)
 					{
-						if (symbol.ids[j] > 0 && symbol.symbols[j].match(/^Crop_\d+/i))
+						if (symbol.ids[j])
 						{
 							adder = new PlaceObject2Tag();
 							adder.character = symbol.ids[j];
-							adder.depth = list.length + 1;
-							list.push(adder);
+							adder.depth = 0;
+							
+							swf.tags.splice(i, 1, adder);
+							break;
 						}
 					}
 					
 				}
 			}
 			
-			
-			swf.tags.splice.apply(null, [-2, 0].concat(list));
 			return swf.repack();
 		}
 		
